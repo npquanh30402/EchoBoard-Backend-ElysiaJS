@@ -1,15 +1,32 @@
 {
-  "name": "elysia-EchoBoard",
+  "name": "echoboard-backend-elysia",
   "version": "1.0.50",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "bun run --watch src/index.ts"
+    "dev": "bun run --watch src/index.ts",
+    "build": "bun build src/index.ts --outdir=dist --minify-identifiers --minify-syntax --target=bun",
+    "start": "bun run build && bun run dist/index.js",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit generate && drizzle-kit migrate",
+    "db:seed": "bun run src/database/seeders/index.ts"
   },
   "dependencies": {
-    "elysia": "latest"
+    "@elysiajs/cors": "^1.0.2",
+    "@elysiajs/jwt": "^1.0.2",
+    "@elysiajs/static": "^1.0.3",
+    "@elysiajs/swagger": "^1.0.5",
+    "drizzle-orm": "^0.31.0",
+    "elysia": "latest",
+    "elysia-compression": "^0.0.7",
+    "postgres": "^3.4.4",
+    "sharp": "^0.33.4",
+    "winston": "^3.13.0"
   },
   "devDependencies": {
-    "bun-types": "latest"
+    "@faker-js/faker": "^8.4.1",
+    "bun-types": "latest",
+    "drizzle-kit": "^0.22.1",
+    "prettier": "^3.3.0"
   },
   "module": "src/index.js"
 }

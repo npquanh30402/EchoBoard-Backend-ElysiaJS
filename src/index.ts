@@ -38,8 +38,9 @@ const app = new Elysia()
   .use(swagger())
   .get("/", ({ redirect }) => redirect("/swagger"))
   .use(apiRoute)
-  .listen(process.env.PORT ?? 3000);
+  .listen({
+    // hostname: "192.168.1.8",
+    port: process.env.PORT ?? 3000,
+  });
 
-console.log(
-  `🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`,
-);
+console.log(`${process.env.APP_NAME} is running at ${app.server?.url}`);

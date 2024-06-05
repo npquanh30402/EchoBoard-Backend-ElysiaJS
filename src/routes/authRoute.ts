@@ -88,7 +88,7 @@ export const authRoute = new Elysia({
       auth.set({
         value: await authJwt.sign(restOfUser as any),
         sameSite: "none",
-        secure: true,
+        secure: process.env.NODE_ENV === "production",
         httpOnly: true,
       });
 

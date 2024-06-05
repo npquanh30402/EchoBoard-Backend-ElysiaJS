@@ -185,15 +185,12 @@ export const notificationRoute = new Elysia({
           .returning();
       });
 
-      ws.publish(`private-notification-${receiverId}`, notification[0]);
+      ws.publish(`private-notification-${receiverId}`, notification[0], true);
     },
   })
   .ws("/private-notification/:id", {
     open(ws) {
       ws.subscribe(`private-notification-${ws.data.params.id}`);
-    },
-    message(ws, message) {
-      console.log(ws.data, message);
     },
   });
 

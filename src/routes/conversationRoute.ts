@@ -1,6 +1,11 @@
 import { Elysia, t } from "elysia";
 import { authJwt } from "../configs";
 import { UserType } from "../database/schemas/userSchema";
+import { db } from "../database/db";
+import { conversationTable } from "../database/schemas";
+import { eq, or } from "drizzle-orm";
+
+const tags = ["CONVERSATION"];
 
 export const conversationRoute = new Elysia({
   prefix: "/conversation",
@@ -12,6 +17,52 @@ export const conversationRoute = new Elysia({
       authUser,
     };
   })
+  .get(
+    "/",
+    ({ authUser }) => {
+      return db.query.conversationTable.findMany({
+        where: or(
+          eq(conversationTable.user1Id, authUser.id),
+          eq(conversationTable.user2Id, authUser.id),
+        ),
+        columns: {
+          conversationId: true,
+          user1Id: true,
+          user2Id: true,
+        },
+      });
+    },
+    {
+      detail: {
+        summary: "Fetch conversations",
+        tags,
+      },
+    },
+  )
+  .post(
+    "/",
+    async ({ body, authUser }) => {
+      const { userId } = body;
+
+      await db.transaction(async (tx) => {
+        await tx.insert(conversationTable).values({
+          user1Id: authUser.id,
+          user2Id: userId,
+        });
+      });
+    },
+    {
+      body: t.Object({
+        userId: t.String({
+          format: "uuid",
+        }),
+      }),
+      detail: {
+        summary: "Create a new conversation",
+        tags,
+      },
+    },
+  )
   .ws("/central-conversation", {
     body: t.Object({
       receiverId: t.String({

@@ -45,9 +45,10 @@ export const notificationTable = pgTable(
   (table) => {
     return {
       // createdAtIdx: index("notification_createdAt_idx").on(table.createdAt),
-      createdAtAndIdIndex: index(
-        "notification_createdAt_idx_created_at_and_id_idx",
-      ).on(table.createdAt, table.id),
+      createdAtAndIdIndex: index("notification_createdAt_idx_and_id_idx").on(
+        table.createdAt,
+        table.id,
+      ),
     };
   },
 );

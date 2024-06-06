@@ -10,6 +10,9 @@ import {
 import { relations } from "drizzle-orm";
 import { profileTable } from "./profileSchema";
 import { postTable } from "./postSchema";
+import { conversationTable } from "./conversationSchema";
+import { fileTable } from "./fileSchema";
+import { conversationMessagesTable } from "./conversationMessagesSchema";
 
 export const userTable = pgTable(
   "users",
@@ -51,6 +54,9 @@ export const userRelations = relations(userTable, ({ one, many }) => ({
     references: [profileTable.userId],
   }),
   posts: many(postTable),
+  conversations: many(conversationTable),
+  conversationMessages: many(conversationMessagesTable),
+  files: many(fileTable),
 }));
 
 export type UserType = typeof userTable.$inferSelect;

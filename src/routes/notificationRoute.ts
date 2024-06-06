@@ -1,11 +1,11 @@
 import { Elysia, t } from "elysia";
 import { authJwt } from "../configs";
-import { checkAuthenticatedMiddleware } from "../middleware";
 import { UserType } from "../database/schemas/userSchema";
 import { db } from "../database/db";
 import { notificationTable } from "../database/schemas";
 import { and, count, desc, eq, gt, lt, or, sql } from "drizzle-orm";
 import { idParamDTO } from "../validators";
+import { checkAuthenticatedMiddleware } from "../middleware";
 
 const tags = ["NOTIFICATION"];
 
@@ -157,14 +157,18 @@ export const notificationRoute = new Elysia({
     body: t.Object({
       type: t.String(),
       content: t.String(),
-      metadata: t.Object({
-        from: t.String(),
-        related_id: t.String(),
-        additional_info: t.Optional(t.Object({})),
-      }),
-      receiverId: t.String({
-        format: "uuid",
-      }),
+      metadata: t.Partial(
+        t.Object({
+          from: t.String(),
+          related_id: t.String(),
+          additional_info: t.Object({}),
+        }),
+      ),
+      receiverId: t.Optional(
+        t.String({
+          format: "uuid",
+        }),
+      ),
     }),
     open(ws) {
       ws.subscribe("central-notification");
@@ -188,30 +192,9 @@ export const notificationRoute = new Elysia({
       ws.publish(`private-notification-${receiverId}`, notification[0], true);
     },
   })
-  .ws("/private-notification/:id", {
+  .ws("/private-notification", {
     open(ws) {
-      ws.subscribe(`private-notification-${ws.data.params.id}`);
+      const { authUser } = ws.data;
+      ws.subscribe(`private-notification-${authUser.id}`);
     },
   });
-
-// function cursorPaginate(
-//   pageSize = 3,
-//   cursor?: { id: string; createdAt: Date } | null,
-// ) {
-//   return db.query.notificationTable.findMany({
-//     columns: {
-//       updatedAt: false,
-//     },
-//     where: cursor
-//       ? or(
-//           gt(notificationTable.createdAt, cursor.createdAt),
-//           and(
-//             eq(notificationTable.createdAt, cursor.createdAt),
-//             gt(notificationTable.id, cursor.id),
-//           ),
-//         )
-//       : undefined,
-//     limit: pageSize,
-//     orderBy: [asc(notificationTable.createdAt), asc(notificationTable.id)],
-//   });
-// }

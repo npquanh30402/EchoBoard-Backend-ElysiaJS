@@ -17,7 +17,6 @@ export const paginationQueryDTO = t.Object({
 });
 
 export const cursorPaginationBodyDTO = t.Object({
-  searchTerm: t.String(),
   cursor: t.Optional(
     t.Object({
       id: t.String({

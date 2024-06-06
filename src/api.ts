@@ -6,7 +6,6 @@ import {
   notificationRoute,
   profileRoute,
   userRoute,
-  websocketRoute,
 } from "./routes";
 
 export const apiRoute = new Elysia({
@@ -17,5 +16,4 @@ export const apiRoute = new Elysia({
   .use(friendRoute)
   .use(userRoute)
   .use(notificationRoute)
-  .use(websocketRoute)
   .use(conversationRoute);

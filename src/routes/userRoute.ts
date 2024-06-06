@@ -1,8 +1,7 @@
-import { Elysia } from "elysia";
+import { Elysia, t } from "elysia";
 import { db } from "../database/db";
 import { userTable } from "../database/schemas";
 import { and, asc, eq, gt, ilike, or, sql } from "drizzle-orm";
-import { cursorPaginationBodyDTO } from "../validators";
 
 const tags = ["USER"];
 
@@ -17,7 +16,17 @@ export const userRoute = new Elysia({
     return searchAndPaginate(searchTerm, 10, cursor);
   },
   {
-    body: cursorPaginationBodyDTO,
+    body: t.Object({
+      searchTerm: t.String(),
+      cursor: t.Optional(
+        t.Object({
+          id: t.String({
+            format: "uuid",
+          }),
+          createdAt: t.Date(),
+        }),
+      ),
+    }),
     detail: {
       summary: "Search user",
       tags,

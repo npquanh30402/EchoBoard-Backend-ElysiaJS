@@ -1,11 +1,4 @@
-import {
-  index,
-  pgEnum,
-  pgTable,
-  primaryKey,
-  timestamp,
-  uuid,
-} from "drizzle-orm/pg-core";
+import { index, pgEnum, pgTable, timestamp, uuid } from "drizzle-orm/pg-core";
 import { userTable } from "./userSchema";
 import { relations } from "drizzle-orm";
 
@@ -18,6 +11,7 @@ export const friendshipStatusEnum = pgEnum("friendship_status", [
 export const friendTable = pgTable(
   "friends",
   {
+    // id: uuid("id").primaryKey().defaultRandom(),
     senderID: uuid("sender_id")
       .references(() => userTable.id, { onDelete: "cascade" })
       .notNull(),
@@ -40,7 +34,7 @@ export const friendTable = pgTable(
   },
   (table) => {
     return {
-      pk: primaryKey({ columns: [table.senderID, table.receiverID] }),
+      // pk: primaryKey({ columns: [table.senderID, table.receiverID] }),
       createdAtIdx: index("friend_createdAt_idx").on(table.createdAt),
       updatedAtIdx: index("friend_updatedAt_idx").on(table.updatedAt),
     };

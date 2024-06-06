@@ -27,8 +27,16 @@ export const notificationTable = pgTable(
     content: text("content").notNull(),
     read: boolean("read").default(false),
     metadata: json("metadata").notNull(),
-    createdAt: timestamp("created_at").notNull().defaultNow(),
-    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+    createdAt: timestamp("created_at", {
+      withTimezone: true,
+    })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", {
+      withTimezone: true,
+    })
+      .notNull()
+      .defaultNow(),
 
     userId: uuid("user_id").references(() => userTable.id, {
       onDelete: "cascade",

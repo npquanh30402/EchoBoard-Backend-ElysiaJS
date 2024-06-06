@@ -21,8 +21,16 @@ export const userTable = pgTable(
     passwordSalt: text("password_salt").notNull(),
     emailVerified: timestamp("emailVerified"),
     isAdmin: boolean("isAdmin").notNull().default(false),
-    createdAt: timestamp("created_at").notNull().defaultNow(),
-    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+    createdAt: timestamp("created_at", {
+      withTimezone: true,
+    })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", {
+      withTimezone: true,
+    })
+      .notNull()
+      .defaultNow(),
   },
   (table) => {
     return {

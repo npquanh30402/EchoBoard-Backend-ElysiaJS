@@ -12,8 +12,16 @@ export const profileTable = pgTable("profiles", {
   fullName: varchar("full_name", { length: 256 }),
   bio: text("bio"),
   profilePictureUrl: varchar("profile_picture_url", { length: 256 }),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at", {
+    withTimezone: true,
+  })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", {
+    withTimezone: true,
+  })
+    .notNull()
+    .defaultNow(),
 });
 
 export const profileRelations = relations(profileTable, ({ one }) => ({

@@ -11,8 +11,16 @@ export const postTable = pgTable("posts", {
     .notNull(),
   title: varchar("username", { length: 100 }).unique().notNull(),
   content: text("content").notNull(),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at", {
+    withTimezone: true,
+  })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", {
+    withTimezone: true,
+  })
+    .notNull()
+    .defaultNow(),
 });
 
 export const postRelations = relations(postTable, ({ one }) => ({

@@ -5,6 +5,7 @@ import staticPlugin from "@elysiajs/static";
 import { apiRoute } from "./api";
 import { winstonLogger } from "./configs";
 import { compression } from "elysia-compression";
+import { webSocketRoute } from "./webSocket";
 
 const app = new Elysia()
   .onError(({ code, error }) => {
@@ -38,6 +39,7 @@ const app = new Elysia()
   .use(swagger())
   .get("/", ({ redirect }) => redirect("/swagger"))
   .use(apiRoute)
+  .use(webSocketRoute)
   .listen({
     // hostname: "192.168.1.8",
     port: process.env.PORT ?? 3000,

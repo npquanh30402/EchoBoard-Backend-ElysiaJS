@@ -4,7 +4,7 @@ import { friendTable } from "../database/schemas";
 import { checkAuthenticatedMiddleware } from "../middleware";
 import { UserType } from "../database/schemas/userSchema";
 import { authJwt } from "../configs";
-import { and, asc, eq, gt, or, SQL } from "drizzle-orm";
+import { and, asc, eq, gt, lt, or, SQL } from "drizzle-orm";
 import { cursorPaginationBodyDTO, idParamDTO } from "../validators";
 
 const tags = ["FRIEND"];
@@ -322,7 +322,7 @@ function friendCursorPaginate(
       ? and(
           searchCondition,
           or(
-            gt(friendTable.createdAt, cursor.createdAt),
+            lt(friendTable.createdAt, cursor.createdAt),
             and(
               eq(friendTable.createdAt, cursor.createdAt),
               gt(friendTable.receiverID, cursor.id),

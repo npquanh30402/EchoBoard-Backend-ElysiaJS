@@ -7,6 +7,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { userTable } from "./userSchema";
 import { relations } from "drizzle-orm";
+import { conversationMessagesTable } from "./conversationMessagesSchema";
 
 export const fileTable = pgTable("files", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -39,6 +40,10 @@ export const fileRelations = relations(fileTable, ({ one }) => ({
   user: one(userTable, {
     fields: [fileTable.uploadBy],
     references: [userTable.id],
+  }),
+  conversationMessages: one(conversationMessagesTable, {
+    fields: [fileTable.id],
+    references: [conversationMessagesTable.fileId],
   }),
 }));
 

@@ -33,10 +33,9 @@ export const conversationMessagesTable = pgTable(
   },
   (table) => {
     return {
-      createdAtAndIdIndex: index("conversation_createdAt_idx_and_id_idx").on(
-        table.createdAt,
-        table.id,
-      ),
+      createdAtAndIdIndex: index(
+        "conversationMessages_createdAt_idx_and_id_idx",
+      ).on(table.createdAt, table.id),
     };
   },
 );

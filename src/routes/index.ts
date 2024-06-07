@@ -4,3 +4,4 @@ export { friendRoute } from "./friendRoute";
 export { notificationRoute } from "./notificationRoute";
 export { userRoute } from "./userRoute";
 export { conversationRoute } from "./conversationRoute";
+export { conversationMessagesRoute } from "./conversationMessagesRoute";

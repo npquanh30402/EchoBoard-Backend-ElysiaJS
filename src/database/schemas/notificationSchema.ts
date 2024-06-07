@@ -26,7 +26,7 @@ export const notificationTable = pgTable(
     // title: varchar("title", { length: 256 }).notNull(),
     content: text("content").notNull(),
     read: boolean("read").default(false),
-    metadata: json("metadata").notNull(),
+    metadata: json("metadata"),
     createdAt: timestamp("created_at", {
       withTimezone: true,
     })

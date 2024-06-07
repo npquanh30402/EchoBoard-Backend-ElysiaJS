@@ -152,49 +152,49 @@ export const notificationRoute = new Elysia({
         tags,
       },
     },
-  )
-  .ws("/central-notification", {
-    body: t.Object({
-      type: t.String(),
-      content: t.String(),
-      metadata: t.Partial(
-        t.Object({
-          from: t.String(),
-          related_id: t.String(),
-          additional_info: t.Object({}),
-        }),
-      ),
-      receiverId: t.Optional(
-        t.String({
-          format: "uuid",
-        }),
-      ),
-    }),
-    open(ws) {
-      ws.subscribe("central-notification");
-    },
-    async message(ws, message) {
-      let { type, content, metadata, receiverId } = message;
-
-      const notification = await db.transaction(async (tx) => {
-        return tx
-          .insert(notificationTable)
-          .values({
-            // @ts-ignore
-            type,
-            content,
-            metadata,
-            userId: receiverId,
-          })
-          .returning();
-      });
-
-      ws.publish(`private-notification-${receiverId}`, notification[0], true);
-    },
-  })
-  .ws("/private-notification", {
-    open(ws) {
-      const { authUser } = ws.data;
-      ws.subscribe(`private-notification-${authUser.id}`);
-    },
-  });
+  );
+// .ws("/central-notification", {
+//   body: t.Object({
+//     type: t.String(),
+//     content: t.String(),
+//     metadata: t.Partial(
+//       t.Object({
+//         from: t.String(),
+//         related_id: t.String(),
+//         additional_info: t.Object({}),
+//       }),
+//     ),
+//     receiverId: t.Optional(
+//       t.String({
+//         format: "uuid",
+//       }),
+//     ),
+//   }),
+//   open(ws) {
+//     ws.subscribe("central-notification");
+//   },
+//   async message(ws, message) {
+//     let { type, content, metadata, receiverId } = message;
+//
+//     const notification = await db.transaction(async (tx) => {
+//       return tx
+//         .insert(notificationTable)
+//         .values({
+//           // @ts-ignore
+//           type,
+//           content,
+//           metadata,
+//           userId: receiverId,
+//         })
+//         .returning();
+//     });
+//
+//     ws.publish(`private-notification-${receiverId}`, notification[0], true);
+//   },
+// })
+// .ws("/private-notification", {
+//   open(ws) {
+//     const { authUser } = ws.data;
+//     ws.subscribe(`private-notification-${authUser.id}`);
+//   },
+// });

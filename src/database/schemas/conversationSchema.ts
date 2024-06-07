@@ -1,4 +1,4 @@
-import { pgTable, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { index, pgTable, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 import { userTable } from "./userSchema";
 import { relations } from "drizzle-orm";
 
@@ -32,6 +32,10 @@ export const conversationTable = pgTable(
       conversationUserUniquePair: unique("conversation_user_unique_pair").on(
         table.user1Id,
         table.user2Id,
+      ),
+      createdAtAndIdIndex: index("conversation_createdAt_idx_and_id_idx").on(
+        table.createdAt,
+        table.conversationId,
       ),
     };
   },

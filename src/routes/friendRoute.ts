@@ -1,16 +1,18 @@
-import { Elysia } from "elysia";
+import { Elysia, t } from "elysia";
 import { db } from "../database/db";
-import { friendTable } from "../database/schemas";
+import { friendTable, userTable } from "../database/schemas";
 import { checkAuthenticatedMiddleware } from "../middleware";
-import { UserType } from "../database/schemas/userSchema";
+import { UserType } from "../database/schemas/userTable";
 import { authJwt } from "../configs";
-import { and, asc, eq, gt, lt, or, SQL } from "drizzle-orm";
-import { cursorPaginationBodyDTO, idParamDTO } from "../validators";
+import { and, desc, eq, gt, lt, or } from "drizzle-orm";
+import { cursorPaginationBodyDTO } from "../validators";
+import { createNotification } from "./notificationRoute";
+import { server } from "../index";
 
 const tags = ["FRIEND"];
 
 export const friendRoute = new Elysia({
-  prefix: "/friend",
+  prefix: "/friends",
 })
   .use(authJwt)
   .guard({
@@ -31,21 +33,83 @@ export const friendRoute = new Elysia({
     };
   })
   .post(
-    "/send-friend-request/:id",
-    async ({ params, authUser }) => {
-      const { id } = params;
+    "/send-friend-request/:userId",
+    async ({ set, params, authUser }) => {
+      const { userId } = params;
 
-      await db.transaction(async (tx) => {
-        await tx.insert(friendTable).values({
-          senderID: authUser.id,
-          receiverID: id,
+      const result = await db.transaction(async (tx) => {
+        const [newRequest] = await tx
+          .insert(friendTable)
+          .values({
+            senderID: authUser.userId,
+            receiverID: userId,
+          })
+          .returning();
+
+        const user = await tx.query.userTable.findFirst({
+          where: eq(userTable.userId, authUser.userId),
+          columns: {
+            username: true,
+          },
+          with: {
+            profile: {
+              columns: {
+                fullName: true,
+                avatarUrl: true,
+              },
+            },
+          },
         });
+
+        return {
+          friendId: newRequest.friendId,
+          friendStatus: newRequest.friendStatus,
+          userId,
+          username: user?.username,
+          fullName: user?.profile.fullName,
+          avatarUrl: user?.profile.avatarUrl,
+          createdAt: newRequest.createdAt,
+        };
       });
 
-      return {};
+      if (userId !== authUser.userId) {
+        await createNotification(
+          "friend_request",
+          `${authUser.username} sent you a friend request`,
+          userId,
+        );
+
+        server?.publish(`private-friend-${userId}`, JSON.stringify(result));
+      }
+
+      set.status = 201;
+      return result;
     },
     {
-      params: idParamDTO,
+      params: t.Object({
+        userId: t.String({
+          format: "uuid",
+        }),
+      }),
+      response: {
+        201: t.Object({
+          friendId: t.String({
+            format: "uuid",
+          }),
+          friendStatus: t.Union([
+            t.Literal("pending"),
+            t.Literal("accepted"),
+            t.Literal("rejected"),
+          ]),
+          userId: t.String({
+            format: "uuid",
+          }),
+          username: t.Union([t.String(), t.Undefined()]),
+          fullName: t.Union([t.String(), t.Undefined(), t.Null()]),
+          avatarUrl: t.Union([t.String(), t.Undefined(), t.Null()]),
+          createdAt: t.Date(),
+        }),
+      },
       detail: {
         summary: "Send friend request",
         tags,
@@ -53,35 +117,78 @@ export const friendRoute = new Elysia({
     },
   )
   .patch(
-    "/accept-friend-request/:id",
+    "/accept-friend-request/:userId",
     async ({ params, authUser }) => {
-      const { id } = params;
+      const { userId } = params;
 
-      await db.transaction(async (tx) => {
-        await tx
+      const result = await db.transaction(async (tx) => {
+        const [updatedRequest] = await tx
           .update(friendTable)
           .set({
-            status: "accepted",
+            friendStatus: "accepted",
             updatedAt: new Date(),
           })
           .where(
             or(
               and(
-                eq(friendTable.receiverID, id),
-                eq(friendTable.senderID, authUser.id),
+                eq(friendTable.receiverID, userId),
+                eq(friendTable.senderID, authUser.userId),
               ),
               and(
-                eq(friendTable.receiverID, authUser.id),
-                eq(friendTable.senderID, id),
+                eq(friendTable.receiverID, authUser.userId),
+                eq(friendTable.senderID, userId),
               ),
             ),
-          );
+          )
+          .returning();
+
+        const user = await tx.query.userTable.findFirst({
+          where: eq(userTable.userId, authUser.userId),
+          columns: {
+            username: true,
+          },
+          with: {
+            profile: {
+              columns: {
+                fullName: true,
+                avatarUrl: true,
+              },
+            },
+          },
+        });
+
+        return {
+          friendId: updatedRequest.friendId,
+          friendStatus: updatedRequest.friendStatus,
+          userId,
+          username: user?.username,
+          fullName: user?.profile.fullName,
+          avatarUrl: user?.profile.avatarUrl,
+          createdAt: updatedRequest.createdAt,
+        };
       });
+
+      if (userId !== authUser.userId) {
+        await createNotification(
+          "friend_request",
+          `${authUser.username} has accepted your friend request`,
+          userId,
+        );
+
+        server?.publish(`private-friend-${userId}`, JSON.stringify(result));
+      }
 
       return {};
     },
     {
-      params: idParamDTO,
+      params: t.Object({
+        userId: t.String({
+          format: "uuid",
+        }),
+      }),
+      response: {
+        200: t.Object({}),
+      },
       detail: {
         summary: "Accept friend request",
         tags,
@@ -89,35 +196,78 @@ export const friendRoute = new Elysia({
     },
   )
   .patch(
-    "/reject-friend-request/:id",
+    "/reject-friend-request/:userId",
     async ({ params, authUser }) => {
-      const { id } = params;
+      const { userId } = params;
 
-      await db.transaction(async (tx) => {
-        await tx
+      const result = await db.transaction(async (tx) => {
+        const [updatedRequest] = await tx
           .update(friendTable)
           .set({
-            status: "rejected",
+            friendStatus: "rejected",
             updatedAt: new Date(),
           })
           .where(
             or(
               and(
-                eq(friendTable.receiverID, id),
-                eq(friendTable.senderID, authUser.id),
+                eq(friendTable.receiverID, userId),
+                eq(friendTable.senderID, authUser.userId),
               ),
               and(
-                eq(friendTable.receiverID, authUser.id),
-                eq(friendTable.senderID, id),
+                eq(friendTable.receiverID, authUser.userId),
+                eq(friendTable.senderID, userId),
               ),
             ),
-          );
+          )
+          .returning();
+
+        const user = await tx.query.userTable.findFirst({
+          where: eq(userTable.userId, authUser.userId),
+          columns: {
+            username: true,
+          },
+          with: {
+            profile: {
+              columns: {
+                fullName: true,
+                avatarUrl: true,
+              },
+            },
+          },
+        });
+
+        return {
+          friendId: updatedRequest.friendId,
+          friendStatus: updatedRequest.friendStatus,
+          userId,
+          username: user?.username,
+          fullName: user?.profile.fullName,
+          avatarUrl: user?.profile.avatarUrl,
+          createdAt: updatedRequest.createdAt,
+        };
       });
+
+      if (userId !== authUser.userId) {
+        await createNotification(
+          "friend_request",
+          `${authUser.username} has rejected your friend request`,
+          userId,
+        );
+
+        server?.publish(`private-friend-${userId}`, JSON.stringify(result));
+      }
 
       return {};
     },
     {
-      params: idParamDTO,
+      params: t.Object({
+        userId: t.String({
+          format: "uuid",
+        }),
+      }),
+      response: {
+        200: t.Object({}),
+      },
       detail: {
         summary: "Reject friend request",
         tags,
@@ -125,25 +275,42 @@ export const friendRoute = new Elysia({
     },
   )
   .delete(
-    "/delete-request-sent/:id",
+    "/delete-request-sent/:userId",
     async ({ params, authUser }) => {
-      const { id } = params;
+      const { userId } = params;
 
-      await db.transaction(async (tx) => {
-        await tx
+      const result = await db.transaction(async (tx) => {
+        const [deletedRequest] = await tx
           .delete(friendTable)
           .where(
             and(
-              eq(friendTable.receiverID, id),
-              eq(friendTable.senderID, authUser.id),
+              eq(friendTable.receiverID, userId),
+              eq(friendTable.senderID, authUser.userId),
             ),
-          );
+          )
+          .returning({
+            friendId: friendTable.friendId,
+          });
+
+        return {
+          friendId: deletedRequest.friendId,
+          friendStatus: "deleted",
+        };
       });
+
+      server?.publish(`private-friend-${userId}`, JSON.stringify(result));
 
       return {};
     },
     {
-      params: idParamDTO,
+      params: t.Object({
+        userId: t.String({
+          format: "uuid",
+        }),
+      }),
+      response: {
+        200: t.Object({}),
+      },
       detail: {
         summary: "Delete request sent",
         tags,
@@ -151,29 +318,41 @@ export const friendRoute = new Elysia({
     },
   )
   .get(
-    "/friendship-status/:id",
+    "/friendship-status/:userId",
     async ({ params, authUser }) => {
-      const { id } = params;
+      const { userId } = params;
       const friendStatus = await db.query.friendTable.findFirst({
         where: or(
           and(
-            eq(friendTable.receiverID, id),
-            eq(friendTable.senderID, authUser.id),
+            eq(friendTable.receiverID, userId),
+            eq(friendTable.senderID, authUser.userId),
           ),
           and(
-            eq(friendTable.receiverID, authUser.id),
-            eq(friendTable.senderID, id),
+            eq(friendTable.receiverID, authUser.userId),
+            eq(friendTable.senderID, userId),
           ),
         ),
         columns: {
-          status: true,
+          friendStatus: true,
         },
       });
 
-      return friendStatus?.status ?? "none";
+      return friendStatus?.friendStatus ?? "none";
     },
     {
-      params: idParamDTO,
+      params: t.Object({
+        userId: t.String({
+          format: "uuid",
+        }),
+      }),
+      response: {
+        200: t.Union([
+          t.Literal("pending"),
+          t.Literal("accepted"),
+          t.Literal("rejected"),
+          t.Literal("none"),
+        ]),
+      },
       detail: {
         summary: "Fetch friendship status",
         tags,
@@ -184,33 +363,79 @@ export const friendRoute = new Elysia({
     "/friend-request",
     async ({ body, authUser }) => {
       const cursor = body.cursor || null;
+      const pageSize = 10;
 
       const searchCondition = and(
-        eq(friendTable.receiverID, authUser.id),
-        eq(friendTable.status, "pending"),
+        eq(friendTable.receiverID, authUser.userId),
+        eq(friendTable.friendStatus, "pending"),
       );
 
-      const sent = await friendCursorPaginate(
-        10,
-        searchCondition,
-        "sender",
-        cursor,
-      );
+      const sent = await db.query.friendTable.findMany({
+        columns: {
+          friendId: true,
+          senderID: true,
+          createdAt: true,
+        },
+        where: cursor
+          ? and(
+              searchCondition,
+              or(
+                lt(friendTable.createdAt, cursor.createdAt),
+                and(
+                  eq(friendTable.createdAt, cursor.createdAt),
+                  gt(friendTable.receiverID, cursor.id),
+                ),
+              ),
+            )
+          : searchCondition,
+        limit: pageSize,
+        orderBy: [desc(friendTable.createdAt), desc(friendTable.senderID)],
+        with: {
+          sender: {
+            columns: {
+              username: true,
+            },
+            with: {
+              profile: {
+                columns: {
+                  fullName: true,
+                  avatarUrl: true,
+                },
+              },
+            },
+          },
+        },
+      });
 
-      return sent
-        .filter((item) => item.senderID !== authUser.id)
+      const results = sent
+        .filter((item) => item.senderID !== authUser.userId)
         .map((item) => ({
-          id: item.senderID,
+          friendId: item.friendId,
+          userId: item.senderID,
           username: item.sender.username,
           fullName: item.sender.profile.fullName,
-          profilePictureUrl: item.sender.profile.profilePictureUrl,
+          avatarUrl: item.sender.profile.avatarUrl,
           createdAt: item.createdAt,
         }));
+
+      return results;
     },
     {
       body: cursorPaginationBodyDTO,
+      response: {
+        200: t.Array(
+          t.Object({
+            friendId: t.String(),
+            userId: t.String(),
+            username: t.String(),
+            fullName: t.Union([t.String(), t.Null()]),
+            avatarUrl: t.Union([t.String(), t.Null()]),
+            createdAt: t.Date(),
+          }),
+        ),
+      },
       detail: {
-        summary: "Fetch Friend Request list",
+        summary: "Fetch friend request list",
         tags,
       },
     },
@@ -219,33 +444,79 @@ export const friendRoute = new Elysia({
     "/request-sent",
     async ({ body, authUser }) => {
       const cursor = body.cursor || null;
+      const pageSize = 10;
 
       const searchCondition = and(
-        eq(friendTable.senderID, authUser.id),
-        eq(friendTable.status, "pending"),
+        eq(friendTable.senderID, authUser.userId),
+        eq(friendTable.friendStatus, "pending"),
       );
 
-      const sent = await friendCursorPaginate(
-        10,
-        searchCondition,
-        "sender",
-        cursor,
-      );
+      const sent = await db.query.friendTable.findMany({
+        columns: {
+          friendId: true,
+          receiverID: true,
+          createdAt: true,
+        },
+        where: cursor
+          ? and(
+              searchCondition,
+              or(
+                lt(friendTable.createdAt, cursor.createdAt),
+                and(
+                  eq(friendTable.createdAt, cursor.createdAt),
+                  gt(friendTable.receiverID, cursor.id),
+                ),
+              ),
+            )
+          : searchCondition,
+        limit: pageSize,
+        orderBy: [desc(friendTable.createdAt), desc(friendTable.senderID)],
+        with: {
+          receiver: {
+            columns: {
+              username: true,
+            },
+            with: {
+              profile: {
+                columns: {
+                  fullName: true,
+                  avatarUrl: true,
+                },
+              },
+            },
+          },
+        },
+      });
 
-      return sent
-        .filter((item) => item.receiverID !== authUser.id)
+      const results = sent
+        .filter((item) => item.receiverID !== authUser.userId)
         .map((item) => ({
-          id: item.receiverID,
+          friendId: item.friendId,
+          userId: item.receiverID,
           username: item.receiver.username,
           fullName: item.receiver.profile.fullName,
-          profilePictureUrl: item.receiver.profile.profilePictureUrl,
+          avatarUrl: item.receiver.profile.avatarUrl,
           createdAt: item.createdAt,
         }));
+
+      return results;
     },
     {
       body: cursorPaginationBodyDTO,
+      response: {
+        200: t.Array(
+          t.Object({
+            friendId: t.String(),
+            userId: t.String(),
+            username: t.String(),
+            fullName: t.Union([t.String(), t.Null()]),
+            avatarUrl: t.Union([t.String(), t.Null()]),
+            createdAt: t.Date(),
+          }),
+        ),
+      },
       detail: {
-        summary: "Fetch Request Sent list",
+        summary: "Fetch request sent list",
         tags,
       },
     },
@@ -254,111 +525,108 @@ export const friendRoute = new Elysia({
     "/friend-list",
     async ({ body, authUser }) => {
       const cursor = body.cursor || null;
+      const pageSize = 10;
 
       const searchCondition = and(
-        eq(friendTable.status, "accepted"),
+        eq(friendTable.friendStatus, "accepted"),
         or(
-          eq(friendTable.senderID, authUser.id),
-          eq(friendTable.receiverID, authUser.id),
+          eq(friendTable.senderID, authUser.userId),
+          eq(friendTable.receiverID, authUser.userId),
         ),
       );
 
-      const friends = await friendCursorPaginate(
-        10,
-        searchCondition,
-        "receiver",
-        cursor,
-      );
+      const sent = await db.query.friendTable.findMany({
+        columns: {
+          friendId: true,
+          receiverID: true,
+          senderID: true,
+          createdAt: true,
+        },
+        where: cursor
+          ? and(
+              searchCondition,
+              or(
+                lt(friendTable.createdAt, cursor.createdAt),
+                and(
+                  eq(friendTable.createdAt, cursor.createdAt),
+                  gt(friendTable.receiverID, cursor.id),
+                ),
+              ),
+            )
+          : searchCondition,
+        limit: pageSize,
+        orderBy: [desc(friendTable.createdAt), desc(friendTable.senderID)],
+        with: {
+          receiver: {
+            columns: {
+              username: true,
+            },
+            with: {
+              profile: {
+                columns: {
+                  fullName: true,
+                  avatarUrl: true,
+                },
+              },
+            },
+          },
+          sender: {
+            columns: {
+              username: true,
+            },
+            with: {
+              profile: {
+                columns: {
+                  fullName: true,
+                  avatarUrl: true,
+                },
+              },
+            },
+          },
+        },
+      });
 
-      return friends.map((friend) => {
-        if (friend.receiverID === authUser.id) {
-          // Return sender info if receiver is authUser
+      const results = sent.map((item) => {
+        if (item.receiverID === authUser.userId) {
           return {
-            id: friend.senderID,
-            username: friend.sender.username,
-            fullName: friend.sender.profile.fullName,
-            profilePictureUrl: friend.sender.profile.profilePictureUrl,
-            createdAt: friend.createdAt,
+            friendId: item.friendId,
+            userId: item.senderID,
+            username: item.sender.username,
+            fullName: item.sender.profile.fullName,
+            avatarUrl: item.sender.profile.avatarUrl,
+            createdAt: item.createdAt,
           };
         } else {
-          // Return receiver info if sender is authUser
           return {
-            id: friend.receiverID,
-            username: friend.receiver.username,
-            fullName: friend.receiver.profile.fullName,
-            profilePictureUrl: friend.receiver.profile.profilePictureUrl,
-            createdAt: friend.createdAt,
+            friendId: item.friendId,
+            userId: item.receiverID,
+            username: item.receiver.username,
+            fullName: item.receiver.profile.fullName,
+            avatarUrl: item.receiver.profile.avatarUrl,
+            createdAt: item.createdAt,
           };
         }
       });
+
+      return results;
     },
     {
       body: cursorPaginationBodyDTO,
+      response: {
+        200: t.Array(
+          t.Object({
+            friendId: t.String(),
+            userId: t.String(),
+            username: t.String(),
+            fullName: t.Union([t.String(), t.Null()]),
+            avatarUrl: t.Union([t.String(), t.Null()]),
+            createdAt: t.Date(),
+          }),
+        ),
+      },
       detail: {
         summary: "Fetch friend list",
         tags,
       },
     },
   );
-
-function friendCursorPaginate(
-  pageSize = 10,
-  searchCondition: SQL<unknown> | undefined,
-  senderOrReceiver: "sender" | "receiver",
-  cursor?: { id: string; createdAt: Date } | null,
-) {
-  const choice =
-    senderOrReceiver === "sender"
-      ? friendTable.senderID
-      : friendTable.receiverID;
-
-  return db.query.friendTable.findMany({
-    columns: {
-      receiverID: true,
-      senderID: true,
-      createdAt: true,
-    },
-    where: cursor
-      ? and(
-          searchCondition,
-          or(
-            lt(friendTable.createdAt, cursor.createdAt),
-            and(
-              eq(friendTable.createdAt, cursor.createdAt),
-              gt(friendTable.receiverID, cursor.id),
-            ),
-          ),
-        )
-      : searchCondition,
-    limit: pageSize,
-    orderBy: [asc(friendTable.createdAt), asc(choice)],
-    with: {
-      receiver: {
-        columns: {
-          username: true,
-        },
-        with: {
-          profile: {
-            columns: {
-              fullName: true,
-              profilePictureUrl: true,
-            },
-          },
-        },
-      },
-      sender: {
-        columns: {
-          username: true,
-        },
-        with: {
-          profile: {
-            columns: {
-              fullName: true,
-              profilePictureUrl: true,
-            },
-          },
-        },
-      },
-    },
-  });
-}

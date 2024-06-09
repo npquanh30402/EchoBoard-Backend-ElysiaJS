@@ -5,14 +5,13 @@ import {
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
-import { userTable } from "./userSchema";
+import { userTable } from "./userTable";
 import { relations } from "drizzle-orm";
-import { conversationMessagesTable } from "./conversationMessagesSchema";
 
 export const fileTable = pgTable("files", {
-  id: uuid("id").primaryKey().defaultRandom(),
+  fileId: uuid("file_id").primaryKey().defaultRandom(),
   uploadBy: uuid("upload_by")
-    .references(() => userTable.id, { onDelete: "cascade" })
+    .references(() => userTable.userId, { onDelete: "cascade" })
     .notNull(),
   fileName: varchar("file_name", {
     length: 256,
@@ -39,12 +38,12 @@ export const fileTable = pgTable("files", {
 export const fileRelations = relations(fileTable, ({ one }) => ({
   user: one(userTable, {
     fields: [fileTable.uploadBy],
-    references: [userTable.id],
+    references: [userTable.userId],
   }),
-  conversationMessages: one(conversationMessagesTable, {
-    fields: [fileTable.id],
-    references: [conversationMessagesTable.fileId],
-  }),
+  // conversationMessages: one(messageTable, {
+  //   fields: [fileTable.fileId],
+  //   references: [messageTable.fileId],
+  // }),
 }));
 
 export type fileType = typeof fileTable.$inferSelect;

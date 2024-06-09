@@ -28,13 +28,11 @@ export async function AuthSeeder(number = 20) {
   console.log("AuthSeeder start...");
 
   await db.transaction(async (tx) => {
-    const users = await tx.insert(userTable).values(data).returning({
-      insertedId: userTable.id,
-    });
+    const users = await tx.insert(userTable).values(data).returning();
 
     users.map(async (user) => {
       await tx.insert(profileTable).values({
-        userId: user.insertedId,
+        userId: user.userId,
       });
     });
   });

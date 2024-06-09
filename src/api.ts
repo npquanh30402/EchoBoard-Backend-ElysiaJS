@@ -1,10 +1,12 @@
 import { Elysia } from "elysia";
 import {
   authRoute,
-  conversationMessagesRoute,
   conversationRoute,
+  followRoute,
   friendRoute,
+  messageRoute,
   notificationRoute,
+  postRoute,
   profileRoute,
   userRoute,
 } from "./routes";
@@ -18,4 +20,6 @@ export const apiRoute = new Elysia({
   .use(userRoute)
   .use(notificationRoute)
   .use(conversationRoute)
-  .use(conversationMessagesRoute);
+  .use(postRoute)
+  .use(followRoute)
+  .use(messageRoute);

@@ -1,10 +1,9 @@
-import { Elysia } from "elysia";
-import { userLoginDTO, userRegistrationDTO } from "../validators";
+import { Elysia, t } from "elysia";
 import crypto from "crypto";
 import { calculatePasswordHash } from "../utils";
 import { db } from "../database/db";
 import { profileTable, userTable } from "../database/schemas";
-import { eq, sql } from "drizzle-orm";
+import { eq, getTableColumns, sql } from "drizzle-orm";
 import { authJwt } from "../configs";
 
 const tags = ["AUTHENTICATION"];
@@ -21,6 +20,8 @@ export const authRoute = new Elysia({
       const passwordSalt = crypto.randomBytes(64).toString("hex");
       const passwordHash = await calculatePasswordHash(password, passwordSalt);
 
+      const { userId, ...restOfUser } = getTableColumns(userTable);
+
       await db.transaction(async (tx) => {
         const insertedUser = await tx
           .insert(userTable)
@@ -30,12 +31,10 @@ export const authRoute = new Elysia({
             passwordSalt,
             passwordHash,
           })
-          .returning({
-            insertedId: userTable.id,
-          });
+          .returning({ userId });
 
         await tx.insert(profileTable).values({
-          userId: insertedUser[0].insertedId,
+          userId: insertedUser[0].userId,
         });
       });
 
@@ -43,7 +42,24 @@ export const authRoute = new Elysia({
       return {};
     },
     {
-      body: userRegistrationDTO,
+      body: t.Object({
+        username: t.String({
+          default: "npquanh",
+          minLength: 3,
+          maxLength: 20,
+        }),
+        email: t.String({
+          format: "email",
+          default: "npquanh@example.com",
+        }),
+        password: t.String({
+          default: "12345678",
+          minLength: 8,
+        }),
+      }),
+      response: {
+        200: t.Object({}),
+      },
       detail: {
         summary: "Register",
         tags,
@@ -95,9 +111,57 @@ export const authRoute = new Elysia({
       return restOfUser;
     },
     {
-      body: userLoginDTO,
+      body: t.Object({
+        email: t.String({
+          format: "email",
+          default: "npquanh@example.com",
+        }),
+        password: t.String({
+          default: "12345678",
+        }),
+      }),
+      response: {
+        200: t.Object({
+          userId: t.String({
+            format: "uuid",
+          }),
+          username: t.String(),
+          email: t.String({
+            format: "email",
+          }),
+          emailVerified: t.Union([t.Date(), t.Null()]),
+          isAdmin: t.Boolean(),
+          createdAt: t.Date(),
+        }),
+        401: t.String({
+          default: "Invalid credentials",
+        }),
+        404: t.String({
+          default: "User not found",
+        }),
+      },
       detail: {
         summary: "Login",
+        tags,
+      },
+    },
+  )
+  .post(
+    "/logout",
+    async ({ cookie }) => {
+      const { auth } = cookie;
+
+      auth.remove();
+
+      return {};
+    },
+    {
+      response: {
+        200: t.Object({}),
+      },
+      detail: {
+        description: "Delete auth httpOnly cookie",
+        summary: "Logout",
         tags,
       },
     },

@@ -9,11 +9,19 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
-import { userTable } from "./userSchema";
+import { userTable } from "./userTable";
 
-export const notificationTypeEnum = pgEnum("notification_type", [
+export const notificationTypeEnum = pgEnum("notification_type_enum", [
   "account_activity",
   "friend_request",
+  "post_interaction",
+  "mention",
+  "group_activity",
+  "event_reminder",
+  "follow",
+  "content_update",
+  "achievement",
+  "system_alert",
   "moderation_alert",
   "other",
 ]);
@@ -21,12 +29,11 @@ export const notificationTypeEnum = pgEnum("notification_type", [
 export const notificationTable = pgTable(
   "notifications",
   {
-    id: uuid("id").primaryKey().defaultRandom(),
-    type: notificationTypeEnum("notification_type").notNull(),
-    // title: varchar("title", { length: 256 }).notNull(),
-    content: text("content").notNull(),
-    read: boolean("read").default(false),
-    metadata: json("metadata"),
+    notificationId: uuid("notification_id").primaryKey().defaultRandom(),
+    notificationType: notificationTypeEnum("notification_type").notNull(),
+    notificationContent: text("content").notNull(),
+    isRead: boolean("is_read").default(false),
+    notificationMetadata: json("notification_metadata"),
     createdAt: timestamp("created_at", {
       withTimezone: true,
     })
@@ -38,17 +45,17 @@ export const notificationTable = pgTable(
       .notNull()
       .defaultNow(),
 
-    userId: uuid("user_id").references(() => userTable.id, {
+    userId: uuid("user_id").references(() => userTable.userId, {
       onDelete: "cascade",
     }),
   },
   (table) => {
     return {
-      // createdAtIdx: index("notification_createdAt_idx").on(table.createdAt),
-      createdAtAndIdIndex: index("notification_createdAt_idx_and_id_idx").on(
+      primaryAndCreatedAtIdx: index("notification_primary_createdAt_idx").on(
+        table.notificationId,
         table.createdAt,
-        table.id,
       ),
+      userIdIdx: index("notification_user_id_idx").on(table.userId),
     };
   },
 );
@@ -58,7 +65,7 @@ export const notificationRelations = relations(
   ({ one }) => ({
     user: one(userTable, {
       fields: [notificationTable.userId],
-      references: [userTable.id],
+      references: [userTable.userId],
     }),
   }),
 );

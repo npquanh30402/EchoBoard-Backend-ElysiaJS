@@ -1,11 +1,11 @@
-export { userTable, userRelations } from "./userSchema";
-export { profileTable, profileRelations } from "./profileSchema";
-export { friendTable, friendRelations } from "./friendSchema";
-export { postTable, postRelations } from "./postSchema";
-export { notificationRelations, notificationTable } from "./notificationSchema";
-export { conversationTable, conversationRelations } from "./conversationSchema";
-export { fileTable, fileRelations } from "./fileSchema";
-export {
-  conversationMessagesTable,
-  conversationMessagesRelations,
-} from "./conversationMessagesSchema";
+export { userTable, userRelations } from "./userTable";
+export { profileTable, profileRelations } from "./profileTable";
+export { friendTable, friendRelations } from "./friendTable";
+export { notificationRelations, notificationTable } from "./notificationTable";
+export { conversationTable, conversationRelations } from "./conversationTable";
+export { fileTable, fileRelations } from "./fileTable";
+export { messageTable, messageRelations } from "./messageTable";
+export { postTable, postRelations } from "./postTable";
+export { commentTable, commentRelations } from "./commentTable";
+export { followTable, followingRelations } from "./followTable";
+export { likeTable, likeRelations } from "./likeTable";

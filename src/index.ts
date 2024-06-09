@@ -4,10 +4,9 @@ import swagger from "@elysiajs/swagger";
 import staticPlugin from "@elysiajs/static";
 import { apiRoute } from "./api";
 import { winstonLogger } from "./configs";
-import { compression } from "elysia-compression";
 import { webSocketRoute } from "./webSocket";
 
-const app = new Elysia()
+export const app = new Elysia()
   .onError(({ code, error }) => {
     winstonLogger.error(error.message);
 
@@ -34,7 +33,7 @@ const app = new Elysia()
       credentials: true,
     }),
   )
-  .use(compression())
+  // .use(compression())
   .use(staticPlugin())
   .use(swagger())
   .get("/", ({ redirect }) => redirect("/swagger"))
@@ -46,3 +45,5 @@ const app = new Elysia()
   });
 
 console.log(`${process.env.APP_NAME} is running at ${app.server?.url}`);
+
+export const server = app.server;

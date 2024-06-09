@@ -8,22 +8,23 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
-import { profileTable } from "./profileSchema";
-import { postTable } from "./postSchema";
-import { conversationTable } from "./conversationSchema";
-import { fileTable } from "./fileSchema";
-import { conversationMessagesTable } from "./conversationMessagesSchema";
+import { profileTable } from "./profileTable";
+import { postTable } from "./postTable";
+import { conversationTable } from "./conversationTable";
+import { messageTable } from "./messageTable";
+import { fileTable } from "./fileTable";
+import { followTable } from "./followTable";
 
 export const userTable = pgTable(
   "users",
   {
-    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id").primaryKey().defaultRandom(),
     username: varchar("username", { length: 20 }).unique().notNull(),
     email: varchar("email", { length: 320 }).unique().notNull(),
     passwordHash: text("password_hash").notNull(),
     passwordSalt: text("password_salt").notNull(),
-    emailVerified: timestamp("emailVerified"),
-    isAdmin: boolean("isAdmin").notNull().default(false),
+    emailVerified: timestamp("email_verified"),
+    isAdmin: boolean("is_admin").notNull().default(false),
     createdAt: timestamp("created_at", {
       withTimezone: true,
     })
@@ -39,10 +40,9 @@ export const userTable = pgTable(
     return {
       usernameIdx: index("user_username_idx").on(table.username),
       emailIdx: index("user_email_idx").on(table.email),
-      // createdAtIndex: index("user_created_at_idx").on(table.createdAt),
-      createdAtAndIdIndex: index("user_created_at_and_id_idx").on(
+      primaryAndCreatedAtIdx: index("user_primary_createdAt_idx").on(
+        table.userId,
         table.createdAt,
-        table.id,
       ),
     };
   },
@@ -50,13 +50,15 @@ export const userTable = pgTable(
 
 export const userRelations = relations(userTable, ({ one, many }) => ({
   profile: one(profileTable, {
-    fields: [userTable.id],
+    fields: [userTable.userId],
     references: [profileTable.userId],
   }),
   posts: many(postTable),
   conversations: many(conversationTable),
-  conversationMessages: many(conversationMessagesTable),
+  conversationMessages: many(messageTable),
   files: many(fileTable),
+  followers: many(followTable),
+  following: many(followTable),
 }));
 
 export type UserType = typeof userTable.$inferSelect;

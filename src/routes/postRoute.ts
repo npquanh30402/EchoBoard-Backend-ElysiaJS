@@ -68,7 +68,10 @@ export const postRoute = new Elysia({
         .select({
           postId: postTable.postId,
           postTitle: postTable.postTitle,
-          postContent: postTable.postContent,
+          postContent:
+            sql<string>`SUBSTRING(${postTable.postContent}, 1, 200)`.as(
+              "postContent",
+            ),
           likeCount: count(likeTable.likeId),
           commentCount: count(commentTable.commentId),
           author: {
@@ -81,10 +84,10 @@ export const postRoute = new Elysia({
           updatedAt: postTable.updatedAt,
         })
         .from(postTable)
-        .innerJoin(userTable, eq(userTable.userId, postTable.postId))
+        .innerJoin(userTable, eq(userTable.userId, postTable.authorId))
         .innerJoin(profileTable, eq(profileTable.userId, userTable.userId))
-        .innerJoin(likeTable, eq(postTable.postId, likeTable.postId))
-        .innerJoin(commentTable, eq(postTable.postId, commentTable.postId))
+        .leftJoin(likeTable, eq(postTable.postId, likeTable.postId))
+        .leftJoin(commentTable, eq(postTable.postId, commentTable.postId))
         .where(
           cursor
             ? and(
@@ -139,7 +142,10 @@ export const postRoute = new Elysia({
         .select({
           postId: postTable.postId,
           postTitle: postTable.postTitle,
-          postContent: postTable.postContent,
+          postContent:
+            sql<string>`SUBSTRING(${postTable.postContent}, 1, 200)`.as(
+              "postContent",
+            ),
           likeCount: count(likeTable.likeId),
           commentCount: count(commentTable.commentId),
           author: {
@@ -158,8 +164,8 @@ export const postRoute = new Elysia({
           profileTable,
           eq(profileTable.userId, followTable.followedId),
         )
-        .innerJoin(likeTable, eq(postTable.postId, likeTable.postId))
-        .innerJoin(commentTable, eq(postTable.postId, commentTable.postId))
+        .leftJoin(likeTable, eq(postTable.postId, likeTable.postId))
+        .leftJoin(commentTable, eq(postTable.postId, commentTable.postId))
         .where(
           cursor
             ? and(
@@ -300,6 +306,8 @@ export const postRoute = new Elysia({
     async ({ authUser, body }) => {
       const { postTitle, postContent } = body;
 
+      const { postId } = getTableColumns(postTable);
+
       const [post] = await db.transaction((tx) => {
         return tx
           .insert(postTable)
@@ -308,7 +316,7 @@ export const postRoute = new Elysia({
             postTitle,
             postContent,
           })
-          .returning();
+          .returning({ postId });
       });
 
       return post;
@@ -329,11 +337,6 @@ export const postRoute = new Elysia({
       response: {
         200: t.Object({
           postId: t.String(),
-          authorId: t.String(),
-          postTitle: t.String(),
-          postContent: t.String(),
-          createdAt: t.Date(),
-          updatedAt: t.Date(),
         }),
       },
       detail: {
@@ -454,7 +457,7 @@ export const postRoute = new Elysia({
         }),
       },
       detail: {
-        summary: "Delete a new post",
+        summary: "Delete a post",
         tags,
       },
     },

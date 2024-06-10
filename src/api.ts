@@ -4,6 +4,7 @@ import {
   conversationRoute,
   followRoute,
   friendRoute,
+  likeRoute,
   messageRoute,
   notificationRoute,
   postRoute,
@@ -22,4 +23,5 @@ export const apiRoute = new Elysia({
   .use(conversationRoute)
   .use(postRoute)
   .use(followRoute)
-  .use(messageRoute);
+  .use(messageRoute)
+  .use(likeRoute);

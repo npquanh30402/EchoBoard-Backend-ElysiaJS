@@ -1,7 +1,12 @@
 import { Elysia, t } from "elysia";
 import { db } from "../database/db";
-import { eq, getTableColumns, sql } from "drizzle-orm";
-import { profileTable } from "../database/schemas";
+import { and, count, eq, getTableColumns, or, sql } from "drizzle-orm";
+import {
+  followTable,
+  friendTable,
+  profileTable,
+  userTable,
+} from "../database/schemas";
 import crypto from "crypto";
 import path from "node:path";
 import { unlink } from "node:fs/promises";
@@ -28,42 +33,68 @@ export const profileRoute = new Elysia({
   })
   .get(
     "/:userId",
-    async ({ params, set }) => {
+    async ({ params, set, authUser }) => {
       const { userId } = params;
 
-      const profile = await db.query.profileTable
-        .findFirst({
-          where: eq(profileTable.userId, sql.placeholder("userId")),
-          columns: {
-            fullName: true,
-            bio: true,
-            avatarUrl: true,
-          },
-          with: {
-            user: {
-              columns: {
-                username: true,
-              },
-            },
-          },
+      const [profile] = await db
+        .select({
+          userId: userTable.userId,
+          username: userTable.username,
+          fullName: profileTable.fullName,
+          bio: profileTable.bio,
+          avatarUrl: profileTable.avatarUrl,
+          isFollowing:
+            sql<boolean>`CASE WHEN ${followTable.followedId} = ${userId} AND ${followTable.followerId} = ${authUser.userId} THEN true ELSE false END`.as(
+              "isFollowing",
+            ),
+          isFollowedBy:
+            sql<boolean>`CASE WHEN ${followTable.followerId} = ${userId} AND ${followTable.followedId} = ${authUser.userId} THEN true ELSE false END`.as(
+              "isFollowedBy",
+            ),
+          numberOfFollowers: count(followTable.followerId),
+          numberOfFollowing:
+            sql<number>`CAST((SELECT COUNT(*) FROM ${followTable} WHERE ${followTable.followerId} = ${userId}) AS INTEGER)`.as(
+              "numberOfFollowing",
+            ),
+
+          friendRequestStatus: friendTable.friendStatus,
         })
-        .prepare("fetchProfileQuery")
-        .execute({
-          userId: userId,
-        });
+        .from(profileTable)
+        .where(eq(profileTable.userId, userId))
+        .innerJoin(userTable, eq(profileTable.userId, userTable.userId))
+        .leftJoin(
+          friendTable,
+          or(
+            and(
+              eq(friendTable.receiverID, userId),
+              eq(friendTable.senderID, authUser.userId),
+            ),
+            and(
+              eq(friendTable.receiverID, authUser.userId),
+              eq(friendTable.senderID, userId),
+            ),
+          ),
+        )
+        .leftJoin(
+          followTable,
+          and(
+            eq(followTable.followedId, userId),
+            eq(followTable.followerId, authUser.userId),
+          ),
+        )
+        .groupBy(
+          userTable.userId,
+          profileTable.profileId,
+          friendTable.friendId,
+          followTable.followId,
+        );
 
       if (!profile) {
         set.status = 404;
         throw new Error("Profile not found");
       }
 
-      return {
-        userId,
-        username: profile.user.username,
-        fullName: profile.fullName,
-        bio: profile.bio,
-        avatarUrl: profile.avatarUrl,
-      };
+      return profile;
     },
     {
       params: t.Object({
@@ -78,6 +109,11 @@ export const profileRoute = new Elysia({
           fullName: t.Union([t.String(), t.Null()]),
           bio: t.Union([t.String(), t.Null()]),
           avatarUrl: t.Union([t.String(), t.Null()]),
+          isFollowing: t.Boolean(),
+          isFollowedBy: t.Boolean(),
+          numberOfFollowers: t.Number(),
+          numberOfFollowing: t.Number(),
+          friendRequestStatus: t.Union([t.String(), t.Null()]),
         }),
       },
       detail: {

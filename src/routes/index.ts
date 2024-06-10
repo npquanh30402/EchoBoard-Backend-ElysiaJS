@@ -7,3 +7,4 @@ export { conversationRoute } from "./conversationRoute";
 export { messageRoute } from "./messageRoute";
 export { postRoute } from "./postRoute";
 export { followRoute } from "./followRoute";
+export { likeRoute } from "./likeRoute";

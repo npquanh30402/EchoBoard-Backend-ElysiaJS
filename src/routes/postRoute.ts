@@ -10,6 +10,7 @@ import {
   gt,
   lt,
   or,
+  SQL,
   sql,
 } from "drizzle-orm";
 import {
@@ -33,6 +34,7 @@ const postDTO = t.Union([
     postContent: t.String(),
     likeCount: t.Number(),
     commentCount: t.Number(),
+    likedByUser: t.Union([t.String(), t.Null()]),
     author: t.Object({
       userId: t.String(),
       username: t.String(),
@@ -57,60 +59,20 @@ export const postRoute = new Elysia({
   })
   .post(
     "all-posts-from-user/:userId",
-    async ({ params, body }) => {
+    async ({ params, body, authUser }) => {
       const { userId } = params;
       const cursor = body.cursor || null;
       const pageSize = 10;
 
       const searchCondition = eq(postTable.authorId, userId);
 
-      const prepared = db
-        .select({
-          postId: postTable.postId,
-          postTitle: postTable.postTitle,
-          postContent:
-            sql<string>`SUBSTRING(${postTable.postContent}, 1, 200)`.as(
-              "postContent",
-            ),
-          likeCount: count(likeTable.likeId),
-          commentCount: count(commentTable.commentId),
-          author: {
-            userId: userTable.userId,
-            username: userTable.username,
-            fullName: profileTable.fullName,
-            avatarUrl: profileTable.avatarUrl,
-          },
-          createdAt: postTable.createdAt,
-          updatedAt: postTable.updatedAt,
-        })
-        .from(postTable)
-        .innerJoin(userTable, eq(userTable.userId, postTable.authorId))
-        .innerJoin(profileTable, eq(profileTable.userId, userTable.userId))
-        .leftJoin(likeTable, eq(postTable.postId, likeTable.postId))
-        .leftJoin(commentTable, eq(postTable.postId, commentTable.postId))
-        .where(
-          cursor
-            ? and(
-                searchCondition,
-                or(
-                  lt(postTable.createdAt, cursor.createdAt),
-                  and(
-                    eq(postTable.createdAt, cursor.createdAt),
-                    gt(postTable.postId, cursor.id),
-                  ),
-                ),
-              )
-            : searchCondition,
-        )
-        .groupBy(postTable.postId, userTable.userId, profileTable.profileId)
-        .limit(pageSize)
-        .orderBy(desc(postTable.createdAt), desc(postTable.postId))
-        .prepare("FetchPostsByUserIdQuery");
-
-      const posts = await prepared.execute({
+      const posts = await fetchPostListPagination(
+        searchCondition,
+        true,
+        authUser,
+        pageSize,
         cursor,
-        pageSize: pageSize,
-      });
+      );
 
       return posts;
     },
@@ -138,53 +100,15 @@ export const postRoute = new Elysia({
 
       const searchCondition = eq(followTable.followerId, authUser.userId);
 
-      const followedPosts = await db
-        .select({
-          postId: postTable.postId,
-          postTitle: postTable.postTitle,
-          postContent:
-            sql<string>`SUBSTRING(${postTable.postContent}, 1, 200)`.as(
-              "postContent",
-            ),
-          likeCount: count(likeTable.likeId),
-          commentCount: count(commentTable.commentId),
-          author: {
-            userId: userTable.userId,
-            username: userTable.username,
-            fullName: profileTable.fullName,
-            avatarUrl: profileTable.avatarUrl,
-          },
-          createdAt: postTable.createdAt,
-          updatedAt: postTable.updatedAt,
-        })
-        .from(postTable)
-        .innerJoin(followTable, eq(postTable.authorId, followTable.followedId))
-        .innerJoin(userTable, eq(userTable.userId, followTable.followedId))
-        .innerJoin(
-          profileTable,
-          eq(profileTable.userId, followTable.followedId),
-        )
-        .leftJoin(likeTable, eq(postTable.postId, likeTable.postId))
-        .leftJoin(commentTable, eq(postTable.postId, commentTable.postId))
-        .where(
-          cursor
-            ? and(
-                searchCondition,
-                or(
-                  lt(postTable.createdAt, cursor.createdAt),
-                  and(
-                    eq(postTable.createdAt, cursor.createdAt),
-                    gt(postTable.postId, cursor.id),
-                  ),
-                ),
-              )
-            : searchCondition,
-        )
-        .groupBy(postTable.postId, userTable.userId, profileTable.profileId)
-        .limit(pageSize)
-        .orderBy(desc(postTable.createdAt), desc(postTable.postId));
+      const posts = await fetchPostListPagination(
+        searchCondition,
+        true,
+        authUser,
+        pageSize,
+        cursor,
+      );
 
-      return followedPosts;
+      return posts;
     },
     {
       body: cursorPaginationBodyDTO,
@@ -199,89 +123,25 @@ export const postRoute = new Elysia({
   )
   .get(
     "/:postId",
-    async ({ set, params }) => {
+    async ({ set, params, authUser }) => {
       const { postId } = params;
+      const pageSize = 10;
 
-      const post = await db.query.postTable
-        .findFirst({
-          where: eq(postTable.postId, sql.placeholder("postId")),
-          columns: {
-            authorId: false,
-          },
-          with: {
-            author: {
-              columns: {
-                userId: true,
-                username: true,
-              },
-              with: {
-                profile: {
-                  columns: {
-                    fullName: true,
-                    avatarUrl: true,
-                  },
-                },
-              },
-            },
-          },
-          extras: {
-            likeCount:
-              sql<number>`cast((SELECT COUNT(*) FROM ${likeTable} WHERE ${likeTable.postId} = ${postTable.postId}) as integer)`.as(
-                "likeCount",
-              ),
-            commentCount:
-              sql<number>`cast((SELECT COUNT(*) FROM ${commentTable} WHERE ${commentTable.postId} = ${postTable.postId}) as integer)`.as(
-                "commentCount",
-              ),
-          },
-        })
-        .prepare("FetchPostByIdQuery")
-        .execute({
-          postId,
-        });
-
-      // const [post] = await db
-      //   .select({
-      //     postId: postTable.postId,
-      //     postTitle: postTable.postTitle,
-      //     postContent: postTable.postContent,
-      //     likeCount: count(likeTable.likeId),
-      //     commentCount: count(commentTable.commentId),
-      //     author: {
-      //       userId: userTable.userId,
-      //       username: userTable.username,
-      //       fullName: profileTable.fullName,
-      //       avatarUrl: profileTable.avatarUrl,
-      //     },
-      //     createdAt: postTable.createdAt,
-      //     updatedAt: postTable.updatedAt,
-      //   })
-      //   .from(postTable)
-      //   .innerJoin(userTable, eq(postTable.authorId, userTable.userId))
-      //   .innerJoin(profileTable, eq(userTable.userId, profileTable.userId))
-      //   .leftJoin(likeTable, eq(postTable.postId, likeTable.postId))
-      //   .leftJoin(commentTable, eq(postTable.postId, commentTable.postId))
-      //   .where(eq(postTable.postId, sql.placeholder("postId")))
-      //   .groupBy(postTable.postId, userTable.userId, profileTable.profileId)
-      //   .prepare("FetchPostByIdQuery")
-      //   .execute({ postId });
+      const searchCondition = eq(postTable.postId, postId);
+      const [post] = await fetchPostListPagination(
+        searchCondition,
+        false,
+        authUser,
+        pageSize,
+        null,
+      );
 
       if (!post) {
         set.status = 404;
         throw new Error("Post not found");
       }
 
-      const result = {
-        ...post,
-        author: {
-          userId: post.author.userId,
-          username: post.author.username,
-          fullName: post.author.profile.fullName,
-          avatarUrl: post.author.profile.avatarUrl,
-        },
-      };
-
-      return result;
+      return post;
     },
     {
       params: t.Object({
@@ -461,4 +321,101 @@ export const postRoute = new Elysia({
         tags,
       },
     },
+  )
+  .post(
+    "/latest",
+    async ({ body, authUser }) => {
+      const cursor = body.cursor || null;
+      const pageSize = 10;
+
+      const posts = await fetchPostListPagination(
+        undefined,
+        true,
+        authUser,
+        pageSize,
+        cursor,
+      );
+
+      return posts;
+    },
+    {
+      body: cursorPaginationBodyDTO,
+      response: {
+        200: t.Array(postDTO),
+      },
+      detail: {
+        summary: "Fetch latest posts",
+        tags,
+      },
+    },
   );
+
+function fetchPostListPagination(
+  searchCondition: SQL<unknown> | undefined,
+  truncatePostContent: boolean = false,
+  user: UserType,
+  pageSize: number = 10,
+  cursor: {
+    id: string;
+    createdAt: Date;
+  } | null = null,
+) {
+  return db
+    .select({
+      postId: postTable.postId,
+      postTitle: postTable.postTitle,
+      postContent: truncatePostContent
+        ? sql<string>`SUBSTRING(${postTable.postContent}, 1, 100)`.as(
+            "postContent",
+          )
+        : postTable.postContent,
+      likeCount: sql<number>`
+      (SELECT CAST(COUNT(*) AS INTEGER) FROM ${likeTable} WHERE ${likeTable.type} = 'like' AND ${likeTable.postId} = ${postTable.postId}) -
+      (SELECT CAST(COUNT(*) AS INTEGER) FROM ${likeTable} WHERE ${likeTable.type} = 'dislike' AND ${likeTable.postId} = ${postTable.postId})
+    `.as("likeCount"),
+      commentCount: count(commentTable.commentId),
+      likedByUser: user.userId
+        ? sql<string>`
+          CASE 
+            WHEN ${likeTable.userId} = ${user.userId} AND ${likeTable.type} = 'like' THEN 'like' 
+            WHEN ${likeTable.userId} = ${user.userId} AND ${likeTable.type} = 'dislike' THEN 'dislike' 
+          END
+        `.as("likedByUser")
+        : sql<null>`NULL`.as("likedByUser"),
+      author: {
+        userId: userTable.userId,
+        username: userTable.username,
+        fullName: profileTable.fullName,
+        avatarUrl: profileTable.avatarUrl,
+      },
+      createdAt: postTable.createdAt,
+      updatedAt: postTable.updatedAt,
+    })
+    .from(postTable)
+    .innerJoin(userTable, eq(userTable.userId, postTable.authorId))
+    .innerJoin(profileTable, eq(profileTable.userId, userTable.userId))
+    .leftJoin(likeTable, eq(postTable.postId, likeTable.postId))
+    .leftJoin(commentTable, eq(postTable.postId, commentTable.postId))
+    .where(
+      cursor
+        ? and(
+            searchCondition,
+            or(
+              lt(postTable.createdAt, cursor.createdAt),
+              and(
+                eq(postTable.createdAt, cursor.createdAt),
+                gt(postTable.postId, cursor.id),
+              ),
+            ),
+          )
+        : searchCondition,
+    )
+    .groupBy(
+      postTable.postId,
+      userTable.userId,
+      profileTable.profileId,
+      likeTable.likeId,
+    )
+    .limit(pageSize)
+    .orderBy(desc(postTable.createdAt), desc(postTable.postId));
+}

@@ -1,12 +1,22 @@
-import { index, pgTable, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import {
+  index,
+  pgEnum,
+  pgTable,
+  timestamp,
+  unique,
+  uuid,
+} from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { userTable } from "./userTable";
 import { postTable } from "./postTable";
+
+export const likeTypeEnum = pgEnum("like_type_enum", ["like", "dislike"]);
 
 export const likeTable = pgTable(
   "likes",
   {
     likeId: uuid("like_id").primaryKey().defaultRandom(),
+    type: likeTypeEnum("type").notNull(),
     userId: uuid("user_id")
       .references(() => userTable.userId, {
         onDelete: "cascade",

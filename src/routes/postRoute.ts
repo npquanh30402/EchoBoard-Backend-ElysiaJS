@@ -25,6 +25,8 @@ import { db } from "../database/db";
 import { UserType } from "../database/schemas/userTable";
 import { cursorPaginationBodyDTO } from "../validators";
 
+const removeMd = require("remove-markdown");
+
 const tags = ["POST"];
 
 const postDTO = t.Union([
@@ -350,7 +352,7 @@ export const postRoute = new Elysia({
     },
   );
 
-function fetchPostListPagination(
+async function fetchPostListPagination(
   searchCondition: SQL<unknown> | undefined,
   truncatePostContent: boolean = false,
   user: UserType,
@@ -360,7 +362,7 @@ function fetchPostListPagination(
     createdAt: Date;
   } | null = null,
 ) {
-  return db
+  const posts = await db
     .select({
       postId: postTable.postId,
       postTitle: postTable.postTitle,
@@ -418,4 +420,15 @@ function fetchPostListPagination(
     )
     .limit(pageSize)
     .orderBy(desc(postTable.createdAt), desc(postTable.postId));
+
+  if (truncatePostContent) {
+    return posts.map((item) => {
+      return {
+        ...item,
+        postContent: removeMd(item.postContent),
+      };
+    });
+  }
+
+  return posts;
 }

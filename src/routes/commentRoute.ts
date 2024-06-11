@@ -12,8 +12,10 @@ import {
   eq,
   getTableColumns,
   gt,
+  isNull,
   lt,
   or,
+  sql,
   SQL,
 } from "drizzle-orm";
 
@@ -103,13 +105,16 @@ export const commentRoute = new Elysia({
     },
   )
   .post(
-    "/:postId/get-all-comments",
+    "/get-all-comments/:postId",
     async ({ params, body }) => {
       const { postId } = params;
       const cursor = body.cursor || null;
       const pageSize = 10;
 
-      const searchCondition = eq(commentTable.postId, postId);
+      const searchCondition = and(
+        eq(commentTable.postId, postId),
+        isNull(commentTable.parentCommentId),
+      );
 
       const comments = await fetchCommentListPagination(
         searchCondition,
@@ -142,7 +147,8 @@ export const commentRoute = new Elysia({
               t.Null(),
             ]),
             commentContent: t.String(),
-            commentCount: t.Number(),
+            // commentCount: t.Number(),
+            replyCount: t.Number(),
             author: t.Object({
               userId: t.String({
                 format: "uuid",
@@ -160,6 +166,66 @@ export const commentRoute = new Elysia({
         tags,
       },
     },
+  )
+  .post(
+    "/get-all-replies/:commentId",
+    async ({ params, body }) => {
+      const { commentId } = params;
+      const cursor = body.cursor || null;
+      const pageSize = 1000;
+
+      const searchCondition = and(eq(commentTable.parentCommentId, commentId));
+
+      const comments = await fetchCommentListPagination(
+        searchCondition,
+        pageSize,
+        cursor,
+      );
+
+      return comments;
+    },
+    {
+      params: t.Object({
+        commentId: t.String({
+          format: "uuid",
+        }),
+      }),
+      body: cursorPaginationBodyDTO,
+      response: {
+        200: t.Array(
+          t.Object({
+            commentId: t.String({
+              format: "uuid",
+            }),
+            postId: t.String({
+              format: "uuid",
+            }),
+            parentCommentId: t.Union([
+              t.String({
+                format: "uuid",
+              }),
+              t.Null(),
+            ]),
+            commentContent: t.String(),
+            // commentCount: t.Number(),
+            replyCount: t.Number(),
+            author: t.Object({
+              userId: t.String({
+                format: "uuid",
+              }),
+              username: t.String(),
+              avatarUrl: t.Union([t.String(), t.Null()]),
+            }),
+            createdAt: t.Date(),
+            updatedAt: t.Date(),
+          }),
+        ),
+      },
+      detail: {
+        summary: "Fetch all replies of a comment",
+        tags,
+      },
+    },
   );
 
 async function fetchCommentListPagination(
@@ -170,13 +236,25 @@ async function fetchCommentListPagination(
     createdAt: Date;
   } | null = null,
 ) {
+  const replyCountSubquery = db
+    .select({
+      parentCommentId: commentTable.parentCommentId,
+      replyCount: count(commentTable.commentId).as("reply_count"),
+    })
+    .from(commentTable)
+    .groupBy(commentTable.parentCommentId)
+    .as("reply_count_subquery");
+
   const comments = await db
     .select({
       commentId: commentTable.commentId,
       postId: commentTable.postId,
       parentCommentId: commentTable.parentCommentId,
       commentContent: commentTable.commentContent,
-      commentCount: count(commentTable.commentId),
+      replyCount:
+        sql<number>`COALESCE(${replyCountSubquery.replyCount}, 0)::INTEGER`.as(
+          "reply_count",
+        ),
       author: {
         userId: userTable.userId,
         username: userTable.username,
@@ -186,6 +264,10 @@ async function fetchCommentListPagination(
       updatedAt: commentTable.updatedAt,
     })
     .from(commentTable)
+    .leftJoin(
+      replyCountSubquery,
+      eq(replyCountSubquery.parentCommentId, commentTable.commentId),
+    )
     .innerJoin(userTable, eq(userTable.userId, commentTable.userId))
     .innerJoin(profileTable, eq(profileTable.userId, userTable.userId))
     .where(
@@ -202,7 +284,12 @@ async function fetchCommentListPagination(
           )
         : searchCondition,
     )
-    .groupBy(commentTable.commentId, userTable.userId, profileTable.profileId)
+    .groupBy(
+      commentTable.commentId,
+      userTable.userId,
+      profileTable.profileId,
+      replyCountSubquery.replyCount,
+    )
     .limit(pageSize)
     .orderBy(desc(commentTable.createdAt), desc(commentTable.postId));
 

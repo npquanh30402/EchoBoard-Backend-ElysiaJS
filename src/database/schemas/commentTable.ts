@@ -1,4 +1,11 @@
-import { index, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import {
+  AnyPgColumn,
+  index,
+  pgTable,
+  text,
+  timestamp,
+  uuid,
+} from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { userTable } from "./userTable";
 import { postTable } from "./postTable";
@@ -13,7 +20,10 @@ export const commentTable = pgTable(
     postId: uuid("post_id")
       .references(() => postTable.postId, { onDelete: "cascade" })
       .notNull(),
-    content: text("content").notNull(),
+    parentCommentId: uuid("parent_comment_id ").references(
+      (): AnyPgColumn => commentTable.commentId,
+    ),
+    commentContent: text("comment_content").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -34,8 +44,8 @@ export const commentTable = pgTable(
   },
 );
 
-export const commentRelations = relations(commentTable, ({ one }) => ({
-  user: one(userTable, {
+export const commentRelations = relations(commentTable, ({ one, many }) => ({
+  author: one(userTable, {
     fields: [commentTable.userId],
     references: [userTable.userId],
   }),
@@ -43,6 +53,11 @@ export const commentRelations = relations(commentTable, ({ one }) => ({
     fields: [commentTable.postId],
     references: [postTable.postId],
   }),
+  comment: one(commentTable, {
+    fields: [commentTable.parentCommentId],
+    references: [commentTable.commentId],
+  }),
+  comments: many(commentTable),
 }));
 
 export type CommentType = typeof commentTable.$inferSelect;

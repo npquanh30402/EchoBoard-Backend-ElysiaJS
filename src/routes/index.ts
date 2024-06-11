@@ -9,3 +9,4 @@ export { postRoute } from "./postRoute";
 export { followRoute } from "./followRoute";
 export { likeRoute } from "./likeRoute";
 export { utilRoute } from "./utilRoute";
+export { commentRoute } from "./commentRoute";

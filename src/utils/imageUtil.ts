@@ -11,7 +11,7 @@ export async function optimizeImage(file: File) {
     })
     .webp({
       quality: 80,
-      effort: 6,
+      effort: 4,
     })
     .toBuffer();
 }

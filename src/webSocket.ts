@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { profileTable } from "./database/schemas";
 import { checkAuthenticatedMiddleware } from "./middleware";
 import { server } from "./index";
+import { unlink } from "node:fs/promises";
 
 let users: any[] = [];
 let messages: any[] = [];
@@ -69,6 +70,7 @@ export const webSocketRoute = new Elysia({
       ws.publish(
         "global-chat",
         JSON.stringify({ type: "USERS_ADD", data: user }),
+        true,
       );
 
       ws.send(JSON.stringify({ type: "USERS_SET", data: users }));
@@ -77,6 +79,11 @@ export const webSocketRoute = new Elysia({
     message(ws, message) {
       const { authUser } = ws.data;
 
+      const requestMessage = message as {
+        message: string;
+        file: string;
+      };
+
       const user = {
         userId: authUser.userId,
         username: authUser.username,
@@ -84,7 +91,8 @@ export const webSocketRoute = new Elysia({
       };
 
       const msg = {
-        message,
+        message: requestMessage.message,
+        file: requestMessage.file,
         createdAt: new Date(),
       };
 
@@ -98,16 +106,25 @@ export const webSocketRoute = new Elysia({
       ws.publish(
         "global-chat",
         JSON.stringify({ type: "MESSAGE_ADD", data: send }),
+        true,
       );
 
       ws.send(JSON.stringify({ type: "MESSAGE_ADD", data: send }));
     },
-    close(ws) {
+    async close(ws) {
       const { authUser } = ws.data;
 
       users = users.filter((user) => user.userId !== authUser.userId);
 
       if (users.length === 0) {
+        for (let i = 0; i < messages.length; i++) {
+          const msg = messages[i];
+
+          if (msg.file && (await Bun.file(msg.file).exists())) {
+            await unlink(msg.file);
+          }
+        }
+
         messages = [];
         return;
       }

@@ -8,3 +8,4 @@ export { messageRoute } from "./messageRoute";
 export { postRoute } from "./postRoute";
 export { followRoute } from "./followRoute";
 export { likeRoute } from "./likeRoute";
+export { utilRoute } from "./utilRoute";

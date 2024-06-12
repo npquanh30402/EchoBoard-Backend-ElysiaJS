@@ -40,7 +40,7 @@ export const app = new Elysia()
   .use(apiRoute)
   .use(webSocketRoute)
   .listen({
-    // hostname: "192.168.1.8",
+    hostname: process.env.HOST ?? "localhost",
     port: process.env.PORT ?? 3000,
   });
 

@@ -4,7 +4,7 @@ import { checkAuthenticatedMiddleware } from "../middleware";
 import { UserType } from "../database/schemas/userTable";
 import { db } from "../database/db";
 import { likeTable } from "../database/schemas";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 const tags = ["LIKE"];
 
@@ -34,18 +34,19 @@ export const likeRoute = new Elysia({
       const { postId } = params;
 
       await db.transaction(async (tx) => {
-        const like = await tx.query.likeTable
-          .findFirst({
-            where: and(
-              eq(likeTable.postId, sql.placeholder("postId")),
+        const [like] = await tx
+          .update(likeTable)
+          .set({
+            type: "like",
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(likeTable.postId, postId),
               eq(likeTable.userId, authUser.userId),
             ),
-            columns: {
-              postId: true,
-            },
-          })
-          .prepare("fetchLikeByPostIdAndUserIdQuery")
-          .execute({ postId });
+          )
+          .returning();
 
         if (like) {
           return {};

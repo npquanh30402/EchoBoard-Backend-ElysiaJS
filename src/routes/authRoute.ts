@@ -6,7 +6,6 @@ import { profileTable, userTable } from "../database/schemas";
 import { eq, getTableColumns, sql } from "drizzle-orm";
 import { authJwt, emailVerificationJwt } from "../configs";
 import fs from "fs";
-import { server } from "../index";
 import { UserType } from "../database/schemas/userTable";
 
 const tags = ["AUTHENTICATION"];
@@ -222,9 +221,13 @@ export const authRoute = new Elysia({
 
       const data = {
         website: { name: "EchoBoard", author: "npquanh30402" },
+        // verificationLink:
+        //   server?.url +
+        //   "api/auth/email-verification?token=" +
+        //   emailVerificationJwtToken,
         verificationLink:
-          server?.url +
-          "api/auth/email-verification?token=" +
+          process.env.HOST +
+          "/api/auth/email-verification?token=" +
           emailVerificationJwtToken,
       };
 

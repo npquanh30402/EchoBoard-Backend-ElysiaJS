@@ -1,2 +1,2 @@
 export { winstonLogger } from "./logger";
-export { authJwt } from "./jwt";
+export { authJwt, emailVerificationJwt } from "./jwt";

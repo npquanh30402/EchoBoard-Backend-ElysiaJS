@@ -18,13 +18,18 @@
     "drizzle-orm": "^0.31.0",
     "elysia": "latest",
     "elysia-compression": "^0.0.7",
+    "handlebars": "^4.7.8",
+    "lru-cache": "^10.2.2",
+    "nodemailer": "^6.9.13",
     "postgres": "^3.4.4",
+    "queue-typed": "^1.51.9",
     "remove-markdown": "^0.5.0",
     "sharp": "^0.33.4",
     "winston": "^3.13.0"
   },
   "devDependencies": {
     "@faker-js/faker": "^8.4.1",
+    "@types/nodemailer": "^6.4.15",
     "bun-types": "latest",
     "drizzle-kit": "^0.22.1",
     "prettier": "^3.3.0"
